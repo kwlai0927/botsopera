@@ -2,49 +2,48 @@ package telegramBot
 
 import (
 	"log"
+	"strconv"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
 	"github.com/kwlai0927/botsopera/opera"
 )
 
-// 處理Bot對接
 type TelegramBot struct {
 	botApi *tgbotapi.BotAPI
 }
 
-func (b *TelegramBot) Watch(ch chan *opera.Message) {
+func (b *TelegramBot) Register(chSend chan<- *opera.BotMessage, chReceive <-chan *opera.BotMessage) {
 	updateChan := b.botApi.GetUpdatesChan(tgbotapi.NewUpdate(0))
+loop:
+	for {
+		select {
+		case update := <-updateChan:
+			if update.Message != nil {
 
-	for update := range updateChan {
-		if update.Message != nil {
+				log.Println("Chat ID: ", update.Message.Chat.ID)
+				log.Println("username: ", update.Message.From.UserName)
+				log.Println("Text: ", update.Message.Text)
 
-			log.Println("Chat ID: ", update.Message.Chat.ID)
-			log.Println("username: ", update.Message.From.UserName)
-			log.Println("Text: ", update.Message.Text)
-
-			ch <- &opera.Message{
-				ID:   "a message id",
-				Text: update.Message.Text,
+				chSend <- &opera.BotMessage{
+					RoomID: opera.RoomID(strconv.FormatInt(update.Message.Chat.ID, 10)),
+					Message: &opera.Message{
+						ID:   "a message id",
+						Text: update.Message.Text,
+					},
+				}
 			}
-
+		case msg, ok := <-chReceive:
+			if !ok {
+				break loop
+			}
+			tgChattable := makeTgChattableFromMessage(msg)
+			b.botApi.Send(tgChattable)
 		}
 	}
-
 }
 
-func makeTgChattableFromMessage(msg *opera.Message) tgbotapi.Chattable {
-	return tgbotapi.NewMessage(msg.ID, msg.Text)
-}
-
-func (b *TelegramBot) SendMessage(id opera.RoomID, msg *opera.Message) (*opera.BotMessage, error) {
-	tgChattable := makeTgChattableFromMessage(msg)
-	_, err := b.botApi.Send(tgChattable)
-	if err != nil {
-		return nil, err
-	}
-	return &opera.BotMessage{
-		RoomID:  id,
-		Message: msg,
-	}, nil
+func makeTgChattableFromMessage(msg *opera.BotMessage) tgbotapi.Chattable {
+	chatID, _ := strconv.ParseInt(string(msg.RoomID), 10, 64)
+	return tgbotapi.NewMessage(chatID, msg.Message.Text)
 }

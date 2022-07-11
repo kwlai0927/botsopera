@@ -6,5 +6,5 @@ type BotID string
 
 type Bot interface {
 	Watch(ch chan *BotMessage)
-	Register(chSend <-chan *BotMessage, chReceive chan<- *BotMessage)
+	Register(chSend chan<- *BotMessage, chReceive <-chan *BotMessage)
 }
